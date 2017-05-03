@@ -61,7 +61,7 @@ def learn_perceptron(neg_examples_nobias, pos_examples_nobias, w_init, w_gen_fea
         w_dist_history.append(np.linalg.norm(w - w_gen_feas))
 
     # Iterate until the perceptron has correctly classified all points.
-    while num_errs > 0:
+    while num_errs > 0 and iter < 10:
         iter = iter + 1
 
         # Update the weights of the perceptron.
@@ -111,12 +111,14 @@ def update_weights(neg_examples, pos_examples, w_current):
         activation = this_case.dot(w)
         if (activation >= 0):
             # YOUR CODE HERE
+            w = (w.T - this_case).T
 
     for i in range(pos_examples.shape[0]):
         this_case = pos_examples[i]
         activation = this_case.dot(w)
         if (activation < 0):
             # YOUR CODE HERE
+            w = (w.T + this_case).T
 
     return w
 
@@ -261,7 +263,7 @@ def plot_perceptron(neg_examples, pos_examples, mistakes0, mistakes1,
 #### Main program
 
 ## Loading data
-data1 = sio.loadmat('dataset3.mat')
+data1 = sio.loadmat('dataset1.mat')
 neg_examples_nobias = data1['neg_examples_nobias']
 pos_examples_nobias = data1['pos_examples_nobias']
 
