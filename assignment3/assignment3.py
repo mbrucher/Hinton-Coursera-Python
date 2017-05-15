@@ -138,7 +138,8 @@ def test_gradient(model, data, wd_coefficient):
         print('Error! Theta element #', test_index+1 , ', with value ',
             base_theta[test_index], 'has finite difference gradient', fd_here,
             'but analytic gradient is', analytic_here,'That looks like an error.')
-        quit()
+        import sys
+        sys.exit()
 
     print('Gradient test passed. That means that the gradient that your '
           'code computed is within 0.001% of the gradient that the finite'
@@ -147,6 +148,9 @@ def test_gradient(model, data, wd_coefficient):
 
 def logistic(input):
     return 1 / (1 + np.exp(-input))
+  
+def dlogistic(input):
+    return np.exp(-input) / (1 + np.exp(-input))**2
 
 def log_sum_exp_over_rows(a):
     # This computes log(sum(exp(a), axis=0)) in a numerically stable way
@@ -245,9 +249,32 @@ def d_loss_by_d_model(model, data, wd_coefficient):
     # it just returns a lot of zeros, which is obviously not the correct
     # output. Your job is to replace that by a correct computation.
 
+    hid_input = np.dot(model['input_to_hid'], data['inputs'])
+    hid_output = logistic(hid_input)
+    class_input = np.dot(model['hid_to_class'], hid_output)
+    class_normalizer = log_sum_exp_over_rows(class_input)
+    log_class_prob = class_input - \
+                     np.tile(class_normalizer, (class_input.shape[0], 1))
+    class_prob = np.exp(log_class_prob)
+
+    yi_ti = class_prob - data['targets']
+    
+    wd_loss_gradient = model_to_theta(model) * wd_coefficient
+    wd_loss_gradient_model = theta_to_model(wd_loss_gradient)
+
+    yi_ti1 = yi_ti[:,None,:]
+    hid_output1 = hid_output[None,:,:]
+
     ret = {}
-    ret['input_to_hid'] = model['input_to_hid'] * 0
-    ret['hid_to_class'] = model['hid_to_class'] * 0
+    ret['hid_to_class'] = wd_loss_gradient_model['hid_to_class'] + np.mean(yi_ti1 * hid_output1, axis=2) #10,7 -> class,hid
+
+    yi_ti = yi_ti[:,None,None,:]
+    hid_to_class = model['hid_to_class'][:,:,None,None]
+    dlog = dlogistic(hid_input)[None, :, None, :]
+
+    big = yi_ti * hid_to_class * dlog * data['inputs']
+
+    ret['input_to_hid'] = wd_loss_gradient_model['input_to_hid'] + np.sum(np.mean(big, axis=3), axis=0)  #7,256 hid,orig
 
     return ret
 
