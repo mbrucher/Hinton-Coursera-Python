@@ -146,7 +146,19 @@ def cd1(rbm_w, visible_data):
     # of size <number of visible units> by <number of data cases>
     # The returned value is the gradient approximation produced by CD-1.
     # It's of the same shape as <rbm_w>.
-    exit("Not yet implemented")
+    visible_data = sample_bernoulli(visible_data)
+    
+    prob_hidden = visible_state_to_hidden_probabilities(rbm_w, visible_data)
+    new_hidden_state = sample_bernoulli(prob_hidden)
+    positive = configuration_goodness_gradient(visible_data, new_hidden_state)
+
+    prob_visible = hidden_state_to_visible_probabilities(rbm_w, new_hidden_state)
+    new_visible_state = sample_bernoulli(prob_visible)
+    prob_hidden = visible_state_to_hidden_probabilities(rbm_w, new_visible_state)
+    
+    negative = configuration_goodness_gradient(new_visible_state, prob_hidden)
+
+    return positive - negative
 
 def configuration_goodness(rbm_w, visible_state, hidden_state):
     # <rbm_w> is a matrix of size <number of hidden units> by
@@ -157,7 +169,7 @@ def configuration_goodness(rbm_w, visible_state, hidden_state):
     # <number of configurations that we're handling in parallel>.
     # This returns a scalar: the mean over cases of the goodness (negative energy)
     # of the described configurations.
-    exit("Not yet implemented")
+    return np.mean([np.dot(hidden, np.dot(rbm_w, visible)) for (visible, hidden) in zip(visible_state.T, hidden_state.T)])
 
 def configuration_goodness_gradient(visible_state, hidden_state):
     # <visible_state> is a binary matrix of size <number of visible units> by
@@ -172,7 +184,7 @@ def configuration_goodness_gradient(visible_state, hidden_state):
     # shape as the model parameters, which by the way are not provided to this
     # function. Notice that we're talking about the mean over data cases
     # (as opposed to the sum over data cases).
-    exit("Not yet implemented")
+    return np.mean([hidden[:,None] * visible for (visible, hidden) in zip(visible_state.T, hidden_state.T)], axis=0)
 
 def hidden_state_to_visible_probabilities(rbm_w, hidden_state):
     # <rbm_w> is a matrix of size <number of hidden units> by
@@ -183,7 +195,7 @@ def hidden_state_to_visible_probabilities(rbm_w, hidden_state):
     # <number of configurations that we're handling in parallel>.
     # This takes in the (binary) states of the hidden units, and returns the
     # activation probabilities of the visible units, conditional on those states.
-    exit("Not yet implemented")
+    return 1/(1+np.exp(-np.dot(rbm_w.T, hidden_state)))
 
 def visible_state_to_hidden_probabilities(rbm_w, visible_state):
     # <rbm_w> is a matrix of size <number of hidden units> by
@@ -194,13 +206,13 @@ def visible_state_to_hidden_probabilities(rbm_w, visible_state):
     # <number of configurations that we're handling in parallel>.
     # This takes in the (binary) states of the visible units, and returns the
     # activation probabilities of the hidden units conditional on those states.
-    exit("Not yet implemented")
+    return 1/(1+np.exp(-np.dot(rbm_w, visible_state)))
 
 def a4_main(n_hid, lr_rbm, lr_classification, n_iterations):
     # first, train the rbm
     global report_calls_to_sample_bernoulli
     report_calls_to_sample_bernoulli = False
-
+    print("Learning rate:{0:.15f}".format(lr_classification))
     rbm_w = optimize([n_hid, 256],
                      lambda rbm_w,data: cd1(rbm_w,data['inputs']), # discard labels
                      training_data, lr_rbm, n_iterations)
@@ -222,6 +234,7 @@ def a4_main(n_hid, lr_rbm, lr_classification, n_iterations):
     data_details = [['training', training_data],
                     ['validation', validation_data],
                     ['test', test_data]]
+    errors = []
     for data_item in data_details:
         data_name = data_item[0]
         data = data_item[1]
@@ -245,7 +258,7 @@ def a4_main(n_hid, lr_rbm, lr_classification, n_iterations):
 
         error_rate = np.mean((argmax_over_rows(class_input) !=
                               argmax_over_rows(data['targets']))) # scalar
-
+        errors.append(error_rate)
         # scalar. select the right log class probability using that sum;
         # then take the mean over all data cases.
         loss = -np.mean(np.sum(log_class_prob * data['targets'], axis=0))
@@ -255,6 +268,7 @@ def a4_main(n_hid, lr_rbm, lr_classification, n_iterations):
             'misclassification rate) is', error_rate)
 
     report_calls_to_sample_bernoulli = True
+    return errors[1]
 
 
 #### ---- Main program
@@ -298,4 +312,33 @@ report_calls_to_sample_bernoulli = True
 del temp
 
 # Part 2 - Main part
-a4_main(300, 0, 0, 0)
+"""a4_main(300, 0, 0, 0)
+
+describe_matrix(visible_state_to_hidden_probabilities(test_rbm_w, data_1_case))
+describe_matrix(visible_state_to_hidden_probabilities(test_rbm_w, data_10_cases))
+describe_matrix(visible_state_to_hidden_probabilities(test_rbm_w, data_37_cases))
+
+describe_matrix(hidden_state_to_visible_probabilities(test_rbm_w, test_hidden_state_1_case))
+describe_matrix(hidden_state_to_visible_probabilities(test_rbm_w, test_hidden_state_10_cases))
+describe_matrix(hidden_state_to_visible_probabilities(test_rbm_w, test_hidden_state_37_cases))
+
+print(configuration_goodness(test_rbm_w, data_1_case, test_hidden_state_1_case))
+print(configuration_goodness(test_rbm_w, data_10_cases, test_hidden_state_10_cases))
+print(configuration_goodness(test_rbm_w, data_37_cases, test_hidden_state_37_cases))
+
+describe_matrix(configuration_goodness_gradient(data_1_case, test_hidden_state_1_case))
+describe_matrix(configuration_goodness_gradient(data_10_cases, test_hidden_state_10_cases))
+describe_matrix(configuration_goodness_gradient(data_37_cases, test_hidden_state_37_cases))
+
+describe_matrix(cd1(test_rbm_w, data_1_case))
+describe_matrix(cd1(test_rbm_w, data_10_cases))
+describe_matrix(cd1(test_rbm_w, data_37_cases))
+"""
+
+from scipy.optimize import minimize_scalar
+
+def cost(x = .005):
+  return a4_main(300, .02, x, 1000)
+
+res = minimize_scalar(cost, bounds=(0.0001, 0.1), options={"disp":True})
+print(res)
